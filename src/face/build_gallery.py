@@ -16,6 +16,21 @@ GALLERY_SPEC = [
 ]
 
 _EMBEDDING_PATTERN = re.compile(r"^embedding.*\.npy$")
+_FACE_APP = None
+
+
+def _get_face_app():
+    global _FACE_APP
+    if _FACE_APP is None:
+        import cv2
+        from insightface.app import FaceAnalysis
+        _FACE_APP = FaceAnalysis(
+            name="buffalo_l",
+            providers=["CPUExecutionProvider"],
+            root=Path.home() / ".insightface",
+        )
+        _FACE_APP.prepare(ctx_id=0, det_size=(640, 640))
+    return _FACE_APP
 
 
 def _normalize(v):
@@ -53,43 +68,35 @@ class FaceGallery:
             emb = self._extract(image_or_embedding)
             if emb is None:
                 return {"person_id": None, "name": "Unknown", "gender": None,
-                        "confidence": 0.0, "top2_similarity": 0.0, "match_status": "unknown"}
+                        "confidence": 0.0, "top1_name": None,
+                        "top2_name": None, "top2_similarity": 0.0,
+                        "match_status": "unknown"}
         else:
             emb = _normalize(np.asarray(image_or_embedding, dtype=np.float32))
 
-        best_id = None
-        best_sim = -1.0
-        second_id = None
-        second_sim = -1.0
+        person_sims = []
         for pid, embeddings in self.embeddings.items():
-            for gallery_emb in embeddings:
-                sim = float(np.dot(emb, gallery_emb))
-                if sim > best_sim:
-                    second_id = best_id
-                    second_sim = best_sim
-                    best_sim = sim
-                    best_id = pid
-                elif sim > second_sim:
-                    second_id = pid
-                    second_sim = sim
+            best = max(float(np.dot(emb, gallery_emb)) for gallery_emb in embeddings)
+            person_sims.append((best, pid))
+        person_sims.sort(key=lambda x: x[0], reverse=True)
 
-        if best_id is None or best_sim < threshold:
-            return {"person_id": None, "name": "Unknown", "gender": None,
-                    "confidence": best_sim, "top2_person_id": None,
-                    "top2_name": None, "top2_similarity": second_sim,
-                    "match_status": "unknown"}
+        best_sim = person_sims[0][0] if person_sims else -1.0
+        best_id = person_sims[0][1] if person_sims else None
+        second_sim = person_sims[1][0] if len(person_sims) > 1 else -1.0
+        second_id = person_sims[1][1] if len(person_sims) > 1 else None
 
-        meta = self.metadata.get(best_id, {})
+        meta = self.metadata.get(best_id) if best_id else None
         second_meta = self.metadata.get(second_id) if second_id else None
+
         return {
             "person_id": best_id,
-            "name": meta.get("name", "Unknown"),
-            "gender": meta.get("gender"),
+            "name": meta["name"] if meta else "Unknown",
+            "gender": meta["gender"] if meta else None,
             "confidence": best_sim,
-            "top2_person_id": second_id,
-            "top2_name": second_meta.get("name") if second_meta else None,
+            "top1_name": meta["name"] if meta else None,
+            "top2_name": second_meta["name"] if second_meta else None,
             "top2_similarity": second_sim,
-            "match_status": "known",
+            "match_status": "known" if best_sim >= threshold else "unknown",
         }
 
     def add_person(self, person_id, name, gender, embedding, filename=None):
@@ -118,18 +125,8 @@ class FaceGallery:
         return _normalize(faces[0].normed_embedding)
 
     def _extract_faces(self, image_path):
-        try:
-            import cv2
-            import insightface
-            from insightface.app import FaceAnalysis
-        except ImportError:
-            raise ImportError("insightface and opencv-python required for real encoding")
-        app = FaceAnalysis(
-            name="buffalo_l",
-            providers=["CPUExecutionProvider"],
-            root=Path.home() / ".insightface",
-        )
-        app.prepare(ctx_id=0, det_size=(640, 640))
+        import cv2
+        app = _get_face_app()
         img = cv2.imread(str(image_path))
         if img is None:
             return None
@@ -156,6 +153,9 @@ def build_simulated_gallery(output_dir=None, seed=42):
 def build_real_gallery(input_dir, output_dir=None):
     input_dir = Path(input_dir)
     gallery_dir = Path(output_dir) if output_dir else GALLERY_DIR
+    if gallery_dir.is_dir():
+        import shutil
+        shutil.rmtree(gallery_dir)
     gallery = FaceGallery(str(gallery_dir))
     for person_dir in sorted(input_dir.iterdir()):
         if not person_dir.is_dir():

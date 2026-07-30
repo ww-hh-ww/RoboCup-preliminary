@@ -16,6 +16,7 @@ runs/
 # Raw data (privacy-sensitive, not for git)
 data/raw/faces/
 data/raw/videos/
+data/processed/face_gallery/
 
 # IDE
 .vscode/

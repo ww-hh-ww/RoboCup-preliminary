@@ -4,8 +4,13 @@ from ultralytics import YOLO
 
 class ObjectDetector:
 
-    def __init__(self, model_path="models/object/best.pt", fallback="yolo11n.pt"):
+    def __init__(self, model_path="models/object/best.pt", fallback="yolo11n.pt", strict=False):
         path = Path(model_path)
+        if strict and not path.exists():
+            raise FileNotFoundError(
+                f"Custom model not found: {path}. "
+                "Train a model first or place the weights file at the expected path."
+            )
         self.model = YOLO(str(path) if path.exists() else fallback)
         self.class_names = self.model.names
 

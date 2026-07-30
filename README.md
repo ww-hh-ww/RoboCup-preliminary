@@ -190,6 +190,7 @@ path: data/processed/item_dataset
 train: images/train
 val: images/val
 test: images/test
+nc: 8
 names:
   0: item_01
   1: item_02
@@ -357,7 +358,6 @@ python -m src.pipeline.run --image test.jpg --face-threshold 0.4 --obj-threshold
 6. 使用独立测试集进行批量验证
 7. 检查漏检、误检和低置信度结果
 8. 端到端验收测试
-9. 根据组委会要求生成最终提交文件
 
 ---
 
@@ -371,6 +371,7 @@ python -m src.pipeline.run --image test.jpg --face-threshold 0.4 --obj-threshold
 - 坐标格式及顺序
 - 是否允许人工检查或修改结果
 - 是否提交代码和模型
+- 最终提交文件格式转换
 
 ---
 

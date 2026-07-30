@@ -3,14 +3,6 @@ YOLO dataset validation script.
 
 Usage:
     python -m scripts.check_dataset data/processed/item_dataset/data.yaml
-
-Checks:
-    - data.yaml exists and is valid
-    - train/val/test directories exist
-    - Each image has a matching label file
-    - Label format (class_id x_center y_center width height, normalized)
-    - Class IDs are within [0, nc)
-    - Class balance report
 """
 
 import sys
@@ -22,11 +14,12 @@ import yaml
 
 def _list_images(dir_path: Path) -> list[Path]:
     exts = {".jpg", ".jpeg", ".png", ".bmp"}
-    return sorted([p for p in dir_path.rglob("*") if p.suffix.lower() in exts])
+    return sorted([p for p in sorted(dir_path.rglob("*")) if p.suffix.lower() in exts])
 
 
-def _label_path(image_path: Path, label_dir: Path) -> Path:
-    return label_dir / image_path.relative_to(image_path.parent).with_suffix(".txt")
+def _label_path(image_path: Path, split_dir: Path, label_dir: Path) -> Path:
+    rel = image_path.relative_to(split_dir)
+    return label_dir / rel.with_suffix(".txt")
 
 
 def check_dataset(yaml_path_str: str):
@@ -36,14 +29,14 @@ def check_dataset(yaml_path_str: str):
         sys.exit(1)
 
     cfg = yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
-    required_keys = ["train", "val", "nc", "names"]
+    required_keys = ["train", "val", "names"]
     for k in required_keys:
         if k not in cfg:
             print(f"ERROR: data.yaml missing key '{k}'")
             sys.exit(1)
 
-    nc = cfg["nc"]
     names = cfg["names"]
+    nc = cfg.get("nc", len(names))
     if len(names) != nc:
         print(f"ERROR: names count ({len(names)}) != nc ({nc})")
         sys.exit(1)
@@ -56,13 +49,20 @@ def check_dataset(yaml_path_str: str):
     class_counts: Counter = Counter()
     total_images = 0
     total_labels = 0
+    all_image_set = {}
 
     for split in ["train", "val", "test"]:
-        split_dir = base / cfg[split]
-        if not split_dir.exists():
+        split_path = cfg.get(split)
+        if not split_path:
             if split == "test":
-                print(f"  [{split}] directory not found (optional, skipping)")
+                print(f"  [{split}] not configured (optional, skipping)")
                 continue
+            print(f"ERROR: [{split}] not configured")
+            errors += 1
+            continue
+
+        split_dir = base / split_path
+        if not split_dir.is_dir():
             print(f"ERROR: [{split}] directory not found: {split_dir}")
             errors += 1
             continue
@@ -70,16 +70,22 @@ def check_dataset(yaml_path_str: str):
         label_dir = base / "labels" / split
         images = _list_images(split_dir)
         total_images += len(images)
+        all_image_set[split] = {p.name for p in images}
         print(f"[{split}] {len(images)} images")
 
         for img_path in images:
-            lbl = _label_path(img_path, label_dir)
+            lbl = _label_path(img_path, split_dir, label_dir)
             if not lbl.exists():
                 print(f"  WARN: missing label: {lbl}")
                 errors += 1
                 continue
 
             lines = lbl.read_text().strip().splitlines()
+            if not lines:
+                print(f"  WARN: empty label: {lbl}")
+                errors += 1
+                continue
+
             total_labels += len(lines)
             for line in lines:
                 parts = line.strip().split()
@@ -99,15 +105,35 @@ def check_dataset(yaml_path_str: str):
                     continue
                 class_counts[cls_id] += 1
 
-                for i, val in enumerate(parts[1:], 1):
+                vals = []
+                valid = True
+                for i, val_str in enumerate(parts[1:], 1):
                     try:
-                        v = float(val)
+                        v = float(val_str)
                     except ValueError:
-                        print(f"  ERROR: {lbl}: invalid value at position {i}: {val}")
+                        print(f"  ERROR: {lbl}: invalid value at position {i}: {val_str}")
                         errors += 1
+                        valid = False
                         break
                     if v < 0 or v > 1:
-                        print(f"  WARN: {lbl}: value at position {i} ({v}) outside [0, 1]")
+                        print(f"  ERROR: {lbl}: value at position {i} ({v}) outside [0, 1]")
+                        errors += 1
+                        valid = False
+                        break
+                    vals.append(v)
+                if not valid:
+                    continue
+                _, _, w, h = vals
+                if w <= 0 or h <= 0:
+                    print(f"  ERROR: {lbl}: width ({w}) and height ({h}) must be > 0")
+                    errors += 1
+
+    if "train" in all_image_set and "val" in all_image_set:
+        dupes = all_image_set["train"] & all_image_set["val"]
+        if dupes:
+            for d in sorted(dupes):
+                print(f"  WARN: duplicate image in train and val: {d}")
+            errors += len(dupes)
 
     print()
     if errors:
@@ -123,6 +149,8 @@ def check_dataset(yaml_path_str: str):
             bar_len = int(count / max_count * 40)
             bar = "█" * bar_len
             print(f"  {names[cls_id]:20s} ({cls_id}): {count:5d} {bar}")
+
+    sys.exit(1 if errors else 0)
 
 
 if __name__ == "__main__":

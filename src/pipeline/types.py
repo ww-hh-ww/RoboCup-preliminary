@@ -9,6 +9,7 @@ class FaceResult:
     gender: Optional[str]
     confidence: float
     face_confidence: float
+    top1_name: Optional[str]
     top1_similarity: float
     top2_name: Optional[str]
     top2_similarity: float

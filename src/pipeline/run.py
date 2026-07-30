@@ -40,6 +40,7 @@ def process_single_image(
                 gender=f.get("gender"),
                 confidence=f["confidence"],
                 face_confidence=f["face_confidence"],
+                top1_name=f.get("top1_name"),
                 top1_similarity=f["top1_similarity"],
                 top2_name=f.get("top2_name"),
                 top2_similarity=f["top2_similarity"],
@@ -82,30 +83,42 @@ def save_json(result: DetectionResult, path: Path):
     path.write_text(json.dumps(result_to_dict(result), ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def run_batch(image_paths, output_dir, face_detector, obj_detector, obj_threshold):
+def _relative_stem(img_path: Path, input_root: Path) -> str:
+    try:
+        rel = img_path.relative_to(input_root)
+    except ValueError:
+        rel = img_path.name
+    return str(rel.parent / rel.stem) if rel.parent != Path(".") else rel.stem
+
+
+def run_batch(image_paths, output_dir, face_detector, obj_detector, obj_threshold, input_root):
     output_dir = Path(output_dir)
     images_out = output_dir / "images"
     json_out = output_dir / "results"
+    output_dir.mkdir(parents=True, exist_ok=True)
     results = []
 
     for img_path in image_paths:
         print(f"Processing: {img_path}")
-        source = ImageFrameSource(str(img_path))
-        frame = source.read()
-        if frame is None:
+        try:
+            source = ImageFrameSource(str(img_path))
+            frame = source.read()
+            if frame is None:
+                raise RuntimeError("Failed to read image")
+            result = process_single_image(frame, str(img_path), face_detector, obj_detector, obj_threshold)
+        except Exception as e:
             results.append(DetectionResult(
                 image_path=str(img_path), faces=[], objects=[],
-                status="error", error_message="Failed to read image",
+                status="error", error_message=str(e),
             ))
             continue
 
-        result = process_single_image(frame, str(img_path), face_detector, obj_detector, obj_threshold)
         results.append(result)
 
         if result.status == "success":
             annotated = draw_results(frame, [f.__dict__ for f in result.faces],
                                      [o.__dict__ for o in result.objects])
-            stem = img_path.stem
+            stem = _relative_stem(img_path, input_root)
             save_annotated(annotated, images_out / f"{stem}.jpg")
             save_json(result, json_out / f"{stem}.json")
 
@@ -183,7 +196,7 @@ def main():
             sys.exit(1)
 
         output_dir = args.output or "output"
-        run_batch(image_paths, output_dir, face_detector, obj_detector, args.obj_threshold)
+        run_batch(image_paths, output_dir, face_detector, obj_detector, args.obj_threshold, Path(args.image))
     else:
         source = CameraFrameSource(args.camera or 0)
         try:
