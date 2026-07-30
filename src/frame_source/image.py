@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Optional
 import cv2
 import numpy as np
 from PIL import Image, ImageOps
@@ -20,7 +21,7 @@ class ImageFrameSource(FrameSource):
             raise FileNotFoundError(f"Cannot read image: {path}")
         self._exhausted = False
 
-    def read(self) -> np.ndarray | None:
+    def read(self) -> Optional[np.ndarray]:
         if self._exhausted:
             return None
         self._exhausted = True

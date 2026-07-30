@@ -1,11 +1,12 @@
 from abc import ABC, abstractmethod
+from typing import Optional
 import numpy as np
 
 
 class FrameSource(ABC):
 
     @abstractmethod
-    def read(self) -> np.ndarray | None:
+    def read(self) -> Optional[np.ndarray]:
         pass
 
     def release(self):

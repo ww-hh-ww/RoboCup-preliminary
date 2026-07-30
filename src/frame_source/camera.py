@@ -1,4 +1,5 @@
 import platform
+from typing import Optional
 
 import cv2
 import numpy as np
@@ -23,7 +24,7 @@ class CameraFrameSource(FrameSource):
         for _ in range(20):
             self._cap.read()
 
-    def read(self) -> np.ndarray | None:
+    def read(self) -> Optional[np.ndarray]:
         ret, frame = self._cap.read()
         if not ret or frame is None:
             return None
