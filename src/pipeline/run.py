@@ -175,7 +175,7 @@ def main():
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--image", type=str, help="Path to input image or directory")
     group.add_argument("--camera", type=int, nargs="?", const=0, help="Camera device ID")
-    parser.add_argument("--output", type=str, default=None, help="Output directory (batch) or file path (single image)")
+    parser.add_argument("--output", type=str, default=None, help="Output directory for image results")
     parser.add_argument("--face-threshold", type=float, default=0.4, help="Face match threshold")
     parser.add_argument("--obj-threshold", type=float, default=0.25, help="Object detection confidence")
     parser.add_argument("--no-display", action="store_true", help="Don't show window")
