@@ -9,7 +9,8 @@ build/
 # macOS
 .DS_Store
 
-
+# Results (contains annotated images with faces)
+results/
 
 # Raw data (privacy-sensitive, not for git)
 data/raw/faces/
