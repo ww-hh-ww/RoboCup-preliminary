@@ -30,5 +30,9 @@ class FaceDetector:
                 "gender": match["gender"],
                 "confidence": match["confidence"],
                 "face_confidence": float(face.det_score),
+                "top1_similarity": match["confidence"],
+                "top2_name": match["top2_name"],
+                "top2_similarity": match["top2_similarity"],
+                "match_status": match["match_status"],
             })
         return results

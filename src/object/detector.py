@@ -1,8 +1,5 @@
 from pathlib import Path
-import numpy as np
 from ultralytics import YOLO
-
-CUSTOM_NAMES = [f"item_{i:02d}" for i in range(1, 9)]
 
 
 class ObjectDetector:
@@ -10,7 +7,7 @@ class ObjectDetector:
     def __init__(self, model_path="models/object/best.pt", fallback="yolo11n.pt"):
         path = Path(model_path)
         self.model = YOLO(str(path) if path.exists() else fallback)
-        self.class_names = CUSTOM_NAMES if path.exists() else None
+        self.class_names = self.model.names
 
     def detect(self, frame, conf_threshold=0.25):
         results = self.model(frame, conf=conf_threshold, verbose=False)[0]
@@ -18,11 +15,7 @@ class ObjectDetector:
         for det in results.boxes.data.cpu().numpy():
             x1, y1, x2, y2, conf, cls_id = det
             cls_id = int(cls_id)
-            class_name = (
-                self.class_names[cls_id]
-                if self.class_names
-                else results.names.get(cls_id, f"class_{cls_id}")
-            )
+            class_name = self.class_names.get(cls_id, f"class_{cls_id}")
             detections.append({
                 "bbox": [int(x1), int(y1), int(x2), int(y2)],
                 "class_id": cls_id,
