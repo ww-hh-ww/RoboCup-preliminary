@@ -6,12 +6,19 @@ class ObjectDetector:
 
     def __init__(self, model_path="models/object/best.pt", fallback="yolo11n.pt", strict=False):
         path = Path(model_path)
+        local_fallback = Path("models") / fallback
         if strict and not path.exists():
             raise FileNotFoundError(
                 f"Custom model not found: {path}. "
                 "Train a model first or place the weights file at the expected path."
             )
-        self.model = YOLO(str(path) if path.exists() else fallback)
+        if path.exists():
+            model_to_load = str(path)
+        elif local_fallback.exists():
+            model_to_load = str(local_fallback)
+        else:
+            model_to_load = fallback
+        self.model = YOLO(model_to_load)
         self.class_names = self.model.names
 
     def detect(self, frame, conf_threshold=0.25):

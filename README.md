@@ -57,6 +57,7 @@ cd RoboCup-preliminary
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements-lock.txt
+python scripts/download_models.py
 ```
 
 ```powershell
