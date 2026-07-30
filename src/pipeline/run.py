@@ -73,16 +73,6 @@ def process_single_image(
         )
 
 
-def save_annotated(frame, path: Path):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    cv2.imwrite(str(path), frame)
-
-
-def save_json(result: DetectionResult, path: Path):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(result_to_dict(result), ensure_ascii=False, indent=2), encoding="utf-8")
-
-
 def _relative_stem(img_path: Path, input_root: Path) -> str:
     try:
         rel = img_path.relative_to(input_root)
@@ -106,21 +96,27 @@ def run_batch(image_paths, output_dir, face_detector, obj_detector, obj_threshol
             if frame is None:
                 raise RuntimeError("Failed to read image")
             result = process_single_image(frame, str(img_path), face_detector, obj_detector, obj_threshold)
+            results.append(result)
+
+            if result.status == "success":
+                annotated = draw_results(frame, [f.__dict__ for f in result.faces],
+                                         [o.__dict__ for o in result.objects])
+                stem = _relative_stem(img_path, input_root)
+                img_out = images_out / f"{stem}.jpg"
+                img_out.parent.mkdir(parents=True, exist_ok=True)
+                if not cv2.imwrite(str(img_out), annotated):
+                    raise RuntimeError(f"Failed to save annotated image: {img_out}")
+                json_out_path = json_out / f"{stem}.json"
+                json_out_path.parent.mkdir(parents=True, exist_ok=True)
+                json_out_path.write_text(
+                    json.dumps(result_to_dict(result), ensure_ascii=False, indent=2),
+                    encoding="utf-8",
+                )
         except Exception as e:
             results.append(DetectionResult(
                 image_path=str(img_path), faces=[], objects=[],
                 status="error", error_message=str(e),
             ))
-            continue
-
-        results.append(result)
-
-        if result.status == "success":
-            annotated = draw_results(frame, [f.__dict__ for f in result.faces],
-                                     [o.__dict__ for o in result.objects])
-            stem = _relative_stem(img_path, input_root)
-            save_annotated(annotated, images_out / f"{stem}.jpg")
-            save_json(result, json_out / f"{stem}.json")
 
     _write_summary(results, output_dir)
     return results
@@ -184,19 +180,23 @@ def main():
     parser.add_argument("--no-display", action="store_true", help="Don't show window")
     parser.add_argument("--no-face", action="store_true", help="Disable face detection")
     parser.add_argument("--no-object", action="store_true", help="Disable object detection")
+    parser.add_argument("--require-custom-model", action="store_true",
+                        help="Error if custom YOLO model not found")
     args = parser.parse_args()
 
     face_detector = None if args.no_face else FaceDetector(threshold=args.face_threshold)
-    obj_detector = None if args.no_object else ObjectDetector()
+    obj_detector = None if args.no_object else ObjectDetector(strict=args.require_custom_model)
 
     if args.image:
-        image_paths = collect_images(Path(args.image))
+        input_path = Path(args.image)
+        input_root = input_path if input_path.is_dir() else input_path.parent
+        image_paths = collect_images(input_path)
         if not image_paths:
             print(f"No images found: {args.image}", file=sys.stderr)
             sys.exit(1)
 
         output_dir = args.output or "output"
-        run_batch(image_paths, output_dir, face_detector, obj_detector, args.obj_threshold, Path(args.image))
+        run_batch(image_paths, output_dir, face_detector, obj_detector, args.obj_threshold, input_root)
     else:
         source = CameraFrameSource(args.camera or 0)
         try:

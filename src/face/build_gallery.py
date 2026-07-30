@@ -88,15 +88,16 @@ class FaceGallery:
         meta = self.metadata.get(best_id) if best_id else None
         second_meta = self.metadata.get(second_id) if second_id else None
 
+        is_known = best_sim >= threshold
         return {
-            "person_id": best_id,
-            "name": meta["name"] if meta else "Unknown",
-            "gender": meta["gender"] if meta else None,
+            "person_id": best_id if is_known else None,
+            "name": meta["name"] if (meta and is_known) else "Unknown",
+            "gender": meta["gender"] if (meta and is_known) else None,
             "confidence": best_sim,
             "top1_name": meta["name"] if meta else None,
             "top2_name": second_meta["name"] if second_meta else None,
             "top2_similarity": second_sim,
-            "match_status": "known" if best_sim >= threshold else "unknown",
+            "match_status": "known" if is_known else "unknown",
         }
 
     def add_person(self, person_id, name, gender, embedding, filename=None):
@@ -151,18 +152,25 @@ def build_simulated_gallery(output_dir=None, seed=42):
 
 
 def build_real_gallery(input_dir, output_dir=None):
+    import shutil
     input_dir = Path(input_dir)
+    if not input_dir.is_dir():
+        raise FileNotFoundError(f"Input directory not found: {input_dir}")
     gallery_dir = Path(output_dir) if output_dir else GALLERY_DIR
-    if gallery_dir.is_dir():
-        import shutil
-        shutil.rmtree(gallery_dir)
-    gallery = FaceGallery(str(gallery_dir))
+    tmp_dir = gallery_dir.with_name(gallery_dir.name + ".tmp")
+    if tmp_dir.is_dir():
+        shutil.rmtree(tmp_dir)
+    gallery = FaceGallery(str(tmp_dir))
+
+    failures = []
     for person_dir in sorted(input_dir.iterdir()):
         if not person_dir.is_dir():
             continue
         meta_path = person_dir / "metadata.json"
         if not meta_path.exists():
-            continue
+            raise FileNotFoundError(
+                f"{person_dir.name}: missing metadata.json"
+            )
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
         pid = meta["person_id"]
         images_dir = person_dir / "images"
@@ -187,7 +195,19 @@ def build_real_gallery(input_dir, output_dir=None):
             print(f"  + {pid}: {img_path.name}")
             added = True
         if not added:
+            failures.append(pid)
             print(f"  ! {pid}: no valid face photo found, skipping")
+
+    if failures:
+        if tmp_dir.is_dir():
+            shutil.rmtree(tmp_dir)
+        raise RuntimeError(
+            f"Gallery build incomplete. No valid photos for: {', '.join(failures)}"
+        )
+
+    if gallery_dir.is_dir():
+        shutil.rmtree(gallery_dir)
+    tmp_dir.rename(gallery_dir)
     print(f"Gallery built at {gallery_dir}")
     return gallery
 

@@ -5,6 +5,7 @@ Usage:
     python -m scripts.check_dataset data/processed/item_dataset/data.yaml
 """
 
+import hashlib
 import sys
 from collections import Counter
 from pathlib import Path
@@ -12,14 +13,31 @@ from pathlib import Path
 import yaml
 
 
+def _file_hash(path: Path) -> str:
+    return hashlib.md5(path.read_bytes()).hexdigest()
+
+
 def _list_images(dir_path: Path) -> list[Path]:
     exts = {".jpg", ".jpeg", ".png", ".bmp"}
     return sorted([p for p in sorted(dir_path.rglob("*")) if p.suffix.lower() in exts])
 
 
+def _list_labels(dir_path: Path) -> list[Path]:
+    return sorted([p for p in dir_path.rglob("*.txt")])
+
+
 def _label_path(image_path: Path, split_dir: Path, label_dir: Path) -> Path:
     rel = image_path.relative_to(split_dir)
     return label_dir / rel.with_suffix(".txt")
+
+
+def _image_path(label_path: Path, split_dir: Path, label_dir: Path) -> Path:
+    rel = label_path.relative_to(label_dir)
+    for ext in [".jpg", ".jpeg", ".png", ".bmp"]:
+        candidate = split_dir / rel.with_suffix(ext)
+        if candidate.exists():
+            return candidate
+    return None
 
 
 def check_dataset(yaml_path_str: str):
@@ -46,10 +64,13 @@ def check_dataset(yaml_path_str: str):
 
     base = yaml_path.parent
     errors = 0
+    background_count = 0
     class_counts: Counter = Counter()
     total_images = 0
     total_labels = 0
-    all_image_set = {}
+    train_hashes = {}
+    val_hashes = {}
+    all_image_names = {}
 
     for split in ["train", "val", "test"]:
         split_path = cfg.get(split)
@@ -70,7 +91,7 @@ def check_dataset(yaml_path_str: str):
         label_dir = base / "labels" / split
         images = _list_images(split_dir)
         total_images += len(images)
-        all_image_set[split] = {p.name for p in images}
+        all_image_names[split] = {p.name for p in images}
         print(f"[{split}] {len(images)} images")
 
         for img_path in images:
@@ -82,8 +103,7 @@ def check_dataset(yaml_path_str: str):
 
             lines = lbl.read_text().strip().splitlines()
             if not lines:
-                print(f"  WARN: empty label: {lbl}")
-                errors += 1
+                background_count += 1
                 continue
 
             total_labels += len(lines)
@@ -128,14 +148,31 @@ def check_dataset(yaml_path_str: str):
                     print(f"  ERROR: {lbl}: width ({w}) and height ({h}) must be > 0")
                     errors += 1
 
-    if "train" in all_image_set and "val" in all_image_set:
-        dupes = all_image_set["train"] & all_image_set["val"]
-        if dupes:
-            for d in sorted(dupes):
-                print(f"  WARN: duplicate image in train and val: {d}")
-            errors += len(dupes)
+            h = _file_hash(img_path)
+            if split == "train":
+                train_hashes[h] = img_path
+            elif split == "val":
+                val_hashes[h] = img_path
+
+        orphaned_labels = []
+        for lbl_path in _list_labels(label_dir):
+            if not _image_path(lbl_path, split_dir, label_dir):
+                orphaned_labels.append(lbl_path)
+        if orphaned_labels:
+            for ol in orphaned_labels:
+                print(f"  WARN: orphaned label (no matching image): {ol}")
+            errors += len(orphaned_labels)
+
+    if train_hashes and val_hashes:
+        common = set(train_hashes) & set(val_hashes)
+        if common:
+            for h in sorted(common):
+                print(f"  WARN: identical file in train and val: {train_hashes[h].name}")
+            errors += len(common)
 
     print()
+    if background_count:
+        print(f"Background images (empty labels): {background_count}")
     if errors:
         print(f"Found {errors} issue(s)")
     else:
