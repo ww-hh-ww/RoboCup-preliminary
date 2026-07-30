@@ -52,6 +52,8 @@
 
 ```bash
 # macOS / Linux
+git clone https://github.com/ww-hh-ww/RoboCup-preliminary.git
+cd RoboCup-preliminary
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements-lock.txt
