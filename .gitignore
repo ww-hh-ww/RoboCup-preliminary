@@ -14,10 +14,14 @@ build/
 results/
 
 # Raw data (privacy-sensitive, not for git)
-data/raw/faces/
-data/raw/videos/
-data/test/
-data/processed/face_gallery/
+data/raw/faces/*
+!data/raw/faces/.gitkeep
+data/raw/videos/*
+!data/raw/videos/.gitkeep
+data/test/*
+!data/test/.gitkeep
+data/processed/face_gallery/*
+!data/processed/face_gallery/.gitkeep
 
 # IDE
 .vscode/

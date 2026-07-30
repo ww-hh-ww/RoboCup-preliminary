@@ -66,6 +66,13 @@ python -m pip install -r requirements-lock.txt
 
 安装完成后，所有命令都应在项目根目录执行。
 
+### 首次运行说明
+
+克隆下来的仓库不包含：
+- **人脸照片** — 需按下方"人脸图库"章节准备自己的 `data/raw/faces/` 目录
+- **测试图片** — 将待识别图片放入 `data/test/` 或任意路径
+- **AI 模型** — InsightFace 和 YOLO 模型会在首次运行时自动下载，耗时取决于网络
+
 ---
 
 ## 使用方式总览
@@ -88,10 +95,10 @@ python -m src.face.build_gallery real data/raw/faces/
 
 ```bash
 # 单张图片
-python -m src.pipeline.run --image test.jpg --output results/
+python -m src.pipeline.run --image data/test/你的照片.jpg --output results/
 
 # 文件夹批处理
-python -m src.pipeline.run --image test_images/ --output results/
+python -m src.pipeline.run --image data/test/ --output results/
 
 # 摄像头调试
 python -m src.pipeline.run --camera 0
@@ -105,16 +112,16 @@ python -m src.pipeline.run --camera 0
 
 ```bash
 # 只运行人脸（关闭物品检测）
-python -m src.pipeline.run --image test.jpg --no-object
+python -m src.pipeline.run --image data/test/你的照片.jpg --no-object
 
 # 只运行物品（关闭人脸识别）
-python -m src.pipeline.run --image test.jpg --no-face
+python -m src.pipeline.run --image data/test/你的照片.jpg --no-face
 ```
 
 ### YOLO 安全开关
 
 ```bash
-python -m src.pipeline.run --image test_images/ --output results/ --require-custom-model
+python -m src.pipeline.run --image data/test/ --output results/ --require-custom-model
 ```
 
 - 不加：缺少 `models/object/best.pt` 时允许使用通用 COCO 模型
@@ -126,7 +133,7 @@ python -m src.pipeline.run --image test_images/ --output results/ --require-cust
 
 ```bash
 python -m src.pipeline.run \
-  --image test_images/ \
+  --image data/test/ \
   --output results/ \
   --require-custom-model
 ```
@@ -267,7 +274,7 @@ python -m src.face.build_gallery simulate
 人脸识别使用相似度阈值判断已知人员和 Unknown：
 
 ```bash
-python -m src.pipeline.run --image test.jpg --face-threshold 0.4
+python -m src.pipeline.run --image data/test/你的照片.jpg --face-threshold 0.4
 ```
 
 默认值仅用于程序调试。
