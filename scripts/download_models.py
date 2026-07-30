@@ -124,11 +124,7 @@ def _extract_buffalo_l(zip_path: Path, target_dir: Path):
 
 
 def download_insightface():
-    home = Path.home()
-    if platform.system() == "Windows":
-        root = home / ".insightface"
-    else:
-        root = home / ".insightface"
+    root = Path.home() / ".insightface"
     model_dir = root / "models" / "buffalo_l"
     if model_dir.is_dir() and any(model_dir.iterdir()):
         _ok(f"InsightFace buffalo_l already installed at {model_dir}")
