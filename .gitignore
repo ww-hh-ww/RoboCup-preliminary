@@ -9,13 +9,12 @@ build/
 # macOS
 .DS_Store
 
-# Test outputs (regenerable)
-outputs/
-runs/
+
 
 # Raw data (privacy-sensitive, not for git)
 data/raw/faces/
 data/raw/videos/
+data/test/
 data/processed/face_gallery/
 
 # IDE
