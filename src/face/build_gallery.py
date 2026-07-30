@@ -160,56 +160,72 @@ def build_real_gallery(input_dir, output_dir=None):
     tmp_dir = gallery_dir.with_name(gallery_dir.name + ".tmp")
     if tmp_dir.is_dir():
         shutil.rmtree(tmp_dir)
-    gallery = FaceGallery(str(tmp_dir))
 
-    failures = []
-    for person_dir in sorted(input_dir.iterdir()):
-        if not person_dir.is_dir():
-            continue
-        meta_path = person_dir / "metadata.json"
-        if not meta_path.exists():
-            raise FileNotFoundError(
-                f"{person_dir.name}: missing metadata.json"
-            )
-        meta = json.loads(meta_path.read_text(encoding="utf-8"))
-        pid = meta["person_id"]
-        images_dir = person_dir / "images"
-        if not images_dir.is_dir():
-            images_dir = person_dir
-        added = False
-        for img_path in sorted(images_dir.glob("*")):
-            if img_path.suffix.lower() not in (".jpg", ".jpeg", ".png"):
+    try:
+        gallery = FaceGallery(str(tmp_dir))
+        person_count = 0
+        failures = []
+
+        for person_dir in sorted(input_dir.iterdir()):
+            if not person_dir.is_dir():
                 continue
-            faces = gallery._extract_faces(img_path)
-            if faces is None:
-                print(f"  ! {pid}: {img_path.name}: no face detected, skipping")
-                continue
-            if len(faces) > 1:
-                raise ValueError(
-                    f"{pid} ({img_path.name}): {len(faces)} faces detected, "
-                    f"expected exactly 1"
+            meta_path = person_dir / "metadata.json"
+            if not meta_path.exists():
+                raise FileNotFoundError(
+                    f"{person_dir.name}: missing metadata.json"
                 )
-            emb = _normalize(faces[0].normed_embedding)
-            gallery.add_person(pid, meta.get("name", ""), meta.get("gender"), emb,
-                               filename=img_path.stem)
-            print(f"  + {pid}: {img_path.name}")
-            added = True
-        if not added:
-            failures.append(pid)
-            print(f"  ! {pid}: no valid face photo found, skipping")
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            pid = meta["person_id"]
+            images_dir = person_dir / "images"
+            if not images_dir.is_dir():
+                images_dir = person_dir
+            added = False
+            for img_path in sorted(images_dir.glob("*")):
+                if img_path.suffix.lower() not in (".jpg", ".jpeg", ".png"):
+                    continue
+                faces = gallery._extract_faces(img_path)
+                if faces is None:
+                    print(f"  ! {pid}: {img_path.name}: no face detected, skipping")
+                    continue
+                if len(faces) > 1:
+                    raise ValueError(
+                        f"{pid} ({img_path.name}): {len(faces)} faces detected, "
+                        f"expected exactly 1"
+                    )
+                emb = _normalize(faces[0].normed_embedding)
+                gallery.add_person(pid, meta.get("name", ""), meta.get("gender"), emb,
+                                   filename=img_path.stem)
+                print(f"  + {pid}: {img_path.name}")
+                added = True
+            if added:
+                person_count += 1
+            else:
+                failures.append(pid)
+                print(f"  ! {pid}: no valid face photo found, skipping")
 
-    if failures:
+        if person_count == 0:
+            raise RuntimeError(
+                "No valid persons found in input directory. "
+                "Check that each person directory has metadata.json and at least one face photo."
+            )
+
+        if failures:
+            raise RuntimeError(
+                f"Gallery build incomplete. No valid photos for: {', '.join(failures)}"
+            )
+
+        if gallery_dir.is_dir():
+            shutil.rmtree(gallery_dir)
+        tmp_dir.rename(gallery_dir)
+
+        gallery = FaceGallery(str(gallery_dir))
+        print(f"Gallery built at {gallery_dir} with {person_count} persons")
+        return gallery
+
+    except BaseException:
         if tmp_dir.is_dir():
             shutil.rmtree(tmp_dir)
-        raise RuntimeError(
-            f"Gallery build incomplete. No valid photos for: {', '.join(failures)}"
-        )
-
-    if gallery_dir.is_dir():
-        shutil.rmtree(gallery_dir)
-    tmp_dir.rename(gallery_dir)
-    print(f"Gallery built at {gallery_dir}")
-    return gallery
+        raise
 
 
 if __name__ == "__main__":

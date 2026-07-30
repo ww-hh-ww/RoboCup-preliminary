@@ -96,7 +96,6 @@ def run_batch(image_paths, output_dir, face_detector, obj_detector, obj_threshol
             if frame is None:
                 raise RuntimeError("Failed to read image")
             result = process_single_image(frame, str(img_path), face_detector, obj_detector, obj_threshold)
-            results.append(result)
 
             if result.status == "success":
                 annotated = draw_results(frame, [f.__dict__ for f in result.faces],
@@ -112,6 +111,8 @@ def run_batch(image_paths, output_dir, face_detector, obj_detector, obj_threshol
                     json.dumps(result_to_dict(result), ensure_ascii=False, indent=2),
                     encoding="utf-8",
                 )
+
+            results.append(result)
         except Exception as e:
             results.append(DetectionResult(
                 image_path=str(img_path), faces=[], objects=[],

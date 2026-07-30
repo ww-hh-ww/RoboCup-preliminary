@@ -15,6 +15,11 @@ class FaceDetector:
         )
         self.app.prepare(ctx_id=0, det_size=det_size)
         self.gallery = FaceGallery(gallery_path)
+        if not self.gallery.embeddings:
+            raise RuntimeError(
+                f"Face gallery is empty at {gallery_path}. "
+                "Build it first with: python -m src.face.build_gallery ..."
+            )
         self.threshold = threshold
 
     def detect(self, frame):

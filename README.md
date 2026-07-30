@@ -261,7 +261,8 @@ python -m src.pipeline.run --image path/to/scene.jpg --output results/
 ### 文件夹批处理
 
 ```bash
-python -m src.pipeline.run --image data/test_scenes/ --output results/
+# 使用自定义 YOLO 模型（推荐正式测试时使用）
+python -m src.pipeline.run --image data/test_scenes/ --output results/ --require-custom-model
 ```
 
 批处理：
