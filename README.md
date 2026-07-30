@@ -250,27 +250,69 @@ python -c "import shutil; shutil.copy('runs/detect/train/weights/best.pt', 'mode
 
 ---
 
-## 运行推理
+## 使用方式总览
 
-### 单张图片
+项目只有两类操作。
 
-```bash
-python -m src.pipeline.run --image path/to/scene.jpg --output results/
-```
-
-### 文件夹批处理
+### 1. 构建人脸图库
 
 ```bash
-# 使用自定义 YOLO 模型（推荐正式测试时使用）
-python -m src.pipeline.run --image data/test_scenes/ --output results/ --require-custom-model
+# 模拟图库，仅测试程序流程
+python -m src.face.build_gallery simulate
+
+# 真实图库，用于正式识别
+python -m src.face.build_gallery real data/raw/faces/
 ```
 
-批处理：
+启用人脸识别前，必须先构建图库。图库为空时程序会报错。
 
-- 遍历目录中的所有支持图片
-- 单张失败时继续处理其他图片
-- 保存失败文件名和错误信息
-- 输出成功数量和失败数量
+### 2. 运行识别
+
+```bash
+# 单张图片
+python -m src.pipeline.run --image test.jpg --output results/
+
+# 文件夹批处理
+python -m src.pipeline.run --image test_images/ --output results/
+
+# 摄像头调试
+python -m src.pipeline.run --camera 0
+```
+
+单张图片和文件夹共用同一套批处理代码——单张图片等价于只有一张文件的批处理。
+
+### 功能开关
+
+默认同时运行人脸识别和物品检测：
+
+```bash
+# 只运行人脸（关闭物品检测）
+python -m src.pipeline.run --image test.jpg --no-object
+
+# 只运行物品（关闭人脸识别）
+python -m src.pipeline.run --image test.jpg --no-face
+```
+
+### YOLO 安全开关
+
+```bash
+python -m src.pipeline.run --image test_images/ --output results/ --require-custom-model
+```
+
+- 不加：缺少 `models/object/best.pt` 时允许使用通用 COCO 模型
+- 加上：缺少自定义模型时直接报错
+
+正式处理比赛数据时加上此参数，开发调试时可以不加。
+
+### 其他参数
+
+`--face-threshold`、`--obj-threshold`、`--output`、`--no-display` 都是配置参数，不是独立运行模式。
+
+### 一句话概括
+
+```text
+先构建人脸库，再选择图片、文件夹或摄像头运行识别。
+```
 
 ### 输出目录
 
@@ -317,26 +359,6 @@ results/
 ```
 
 该 JSON 是项目内部统一格式。组委会公布正式提交格式后，再增加转换程序，不修改人脸和物品检测核心逻辑。
-
----
-
-## 摄像头调试
-
-摄像头功能主要用于本地调试，不是线上提交主流程。
-
-```bash
-# 摄像头实时检测
-python -m src.pipeline.run --camera 0
-
-# 只运行人脸模块
-python -m src.pipeline.run --image test.jpg --no-object
-
-# 只运行物品模块
-python -m src.pipeline.run --image test.jpg --no-face
-
-# 调整检测阈值
-python -m src.pipeline.run --image test.jpg --face-threshold 0.4 --obj-threshold 0.3
-```
 
 ---
 
